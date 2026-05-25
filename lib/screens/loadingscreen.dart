@@ -19,16 +19,17 @@ class _LoadingScreenState extends State<LoadingScreen> {
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
 
-    Navigator.pushReplacement( 
-    context,
-    PageRouteBuilder( 
-      pageBuilder: (context, animation, secondaryAnimation) => const LoginScreen(),
-      transitionsBuilder: (context, animation, secondaryAnimation, child){
-        return FadeTransition(opacity: animation, child: child);
-      },
-      transitionDuration: const Duration(milliseconds: 800)
-     ),
-  )  
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder:
+            (context, animation, secondaryAnimation) => const LoginScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override
@@ -37,7 +38,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
       backgroundColor: Colors.white,
       body: Center(
         child: Container(
-          width:180,
+          width: 180,
           height: 180,
           decoration: const BoxDecoration(
             color: Color(0xFF9BC8EB),
@@ -49,9 +50,10 @@ class _LoadingScreenState extends State<LoadingScreen> {
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
-                fontWeight: FontWeight.bold
-              )
-            )),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
       ),
     );
