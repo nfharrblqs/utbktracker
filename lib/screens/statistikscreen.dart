@@ -10,6 +10,23 @@ class StatistikScreen extends StatefulWidget {
 }
 
 class _StatistikScreenState extends State<StatistikScreen> {
+  Color _getColorFromHex(String hexColor) {
+    try {
+      String cleanedColor = hexColor.replaceAll('#', '');
+
+      if (cleanedColor.length == 6) {
+        return Color(int.parse('FF$cleanedColor', radix: 16));
+      } else if (cleanedColor.length == 8) {
+        return Color(int.parse(cleanedColor, radix: 16));
+      } else {
+        return Colors.green;
+      }
+    } catch (e) {
+      print('Error parsing color: $e, value: $hexColor');
+      return Colors.green;
+    }
+  }
+
   final StatistikService _statistikService = StatistikService();
 
   List<Map<String, dynamic>> ptnList = [];
@@ -24,7 +41,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
   int? selectedPtn3;
   int? selectedProdi3;
 
-  int currentScore = 0;
+  int? currentScore;
   int targetScore1 = 0;
   int targetScore2 = 0;
   int targetScore3 = 0;
@@ -263,67 +280,51 @@ class _StatistikScreenState extends State<StatistikScreen> {
                   BoxShadow(color: Colors.black, blurRadius: 4),
                 ],
               ),
-              child: const Center(
-                child: Text(
-                  'Rasionalisasi TO UTBK SNBT',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2B4C7E),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-              ),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "Analisis Peluang",
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                  const Center(
+                    child: Text(
+                      'Rasionalisasi TO UTBK SNBT',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B4C7E),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2B4C7E).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          "Nilai: $currentScore",
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B4C7E).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(width: 4),
+                        Text(
+                          currentScore != null
+                              ? "Nilai UTBK: $currentScore"
+                              : "Nilai UTBK: Belum diisi",
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF2B4C7E),
+                            fontSize: 12,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 10),
-                  Text(
-                    _statistikService.getRecommendation(
-                      currentScore,
-                      targetScore1 > 0 ? targetScore1 : 0,
-                    ),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 15),
+
             _buildPilihanCard(
               'Pilihan Pertama',
               1,
@@ -407,6 +408,23 @@ class _StatistikScreenState extends State<StatistikScreen> {
     List<Map<String, dynamic>> prodiList,
     int targetScore,
   ) {
+    String prodiNama = '';
+    String ptnNama = '';
+    if (selectedProdi != null) {
+      final prodi = prodiList.firstWhere(
+        (p) => p['id'] == selectedProdi,
+        orElse: () => {},
+      );
+      if (prodi.isNotEmpty) {
+        prodiNama = prodi['nama'] as String;
+        final ptn = ptnList.firstWhere(
+          (p) => p['id'] == selectedPtn,
+          orElse: () => {},
+        );
+        ptnNama = ptn.isNotEmpty ? (ptn['nama'] as String) : '';
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(16),
@@ -423,29 +441,170 @@ class _StatistikScreenState extends State<StatistikScreen> {
               title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
+                fontSize: 16,
                 color: Color(0xFF2B4C7E),
               ),
             ),
           ),
+
+          const SizedBox(height: 8),
+
+          if (selectedProdi != null && targetScore > 0) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [const Color(0xFF2B4C7E), const Color(0xFF5A7BA8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'TARGET SCORE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _statistikService.calculatePeluang(
+                            currentScore ?? 0,
+                            targetScore,
+                          ),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$targetScore',
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Minimal nilai yang dibutuhkan untuk $prodiNama - $ptnNama',
+                    style: const TextStyle(fontSize: 10, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+
+                  if (currentScore != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Selisih dengan nilai Anda:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          Text(
+                            _getSelisihText(currentScore!, targetScore),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  currentScore! >= targetScore
+                                      ? Colors.white
+                                      : Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          if (selectedProdi == null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Pilih PTN dan Program Studi untuk melihat target score',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           const SizedBox(height: 10),
+
           const Text(
             'Perguruan Tinggi Negeri',
             style: TextStyle(fontSize: 12, color: Colors.blueGrey),
           ),
           const SizedBox(height: 5),
           _buildPTNDropdown(pilihanIndex, selectedPtn),
+
           const SizedBox(height: 10),
+
           const Text(
             'Program Studi',
             style: TextStyle(fontSize: 12, color: Colors.blueGrey),
           ),
           const SizedBox(height: 5),
           _buildProdiDropdown(pilihanIndex, selectedProdi, prodiList),
+
           if (selectedProdi != null && prodiList.isNotEmpty)
             _buildProdiDetails(selectedProdi, prodiList, targetScore),
         ],
       ),
     );
+  }
+
+  String _getSelisihText(int currentScore, int targetScore) {
+    int selisih = targetScore - currentScore;
+    if (selisih <= 0) {
+      return '+${selisih.abs()} poin (melebihi target)';
+    } else {
+      return '-$selisih poin (kurang dari target)';
+    }
   }
 
   Widget _buildPTNDropdown(int pilihanIndex, int? selectedValue) {
@@ -551,81 +710,228 @@ class _StatistikScreenState extends State<StatistikScreen> {
 
     final dayaTampung = prodi['daya_tampung'] as int;
     final peminat = prodi['peminat'] as int;
-    final passingRate = _statistikService.calculatePassingRate(
-      dayaTampung,
-      peminat,
-    );
-    final peluangLolos = _statistikService.calculatePeluang(
-      currentScore,
-      targetScore,
-    );
 
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF9E6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.amber, width: 1),
+    if (currentScore == null) {
+      return Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Column(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 30),
+            SizedBox(height: 8),
+            Text(
+              'Anda belum mengisi score UTBK',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Silakan input score UTBK terlebih dahulu di halaman Dashboard',
+              style: TextStyle(fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return FutureBuilder(
+      future: _statistikService.calculatePeluangStatistika(
+        currentScore: currentScore!,
+        targetScore: targetScore,
+        userId: widget.userId,
+        dayaTampung: dayaTampung,
+        peminat: peminat,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Detail Program Studi:',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox(
+            height: 50,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final data = snapshot.data!;
+        final passingRate = _statistikService.calculatePassingRate(
+          dayaTampung,
+          peminat,
+        );
+
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF9E6),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.amber, width: 1),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Daya Tampung: $dayaTampung',
-                style: const TextStyle(fontSize: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Target Score:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B4C7E).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$targetScore',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Color(0xFF2B4C7E),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              Text('Peminat: $peminat', style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 8),
+
+              const Text(
+                'Analisis Statistika',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Daya Tampung: $dayaTampung',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  Text(
+                    'Peminat: $peminat',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              LinearProgressIndicator(
+                value: passingRate / 100 > 1 ? 1 : passingRate / 100,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  passingRate > 10
+                      ? Colors.red
+                      : passingRate > 5
+                      ? Colors.orange
+                      : Colors.green,
+                ),
+              ),
+              Text(
+                'Tingkat Kelulusan: ${passingRate.toStringAsFixed(2)}%',
+                style: const TextStyle(fontSize: 11),
+              ),
+
+              const Divider(),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Peluang Lolos:', style: TextStyle(fontSize: 12)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getColorFromHex(
+                        data['color'] ?? '#4CAF50',
+                      ).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${data['persentase'] ?? '0'}%',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _getColorFromHex(data['color'] ?? '#4CAF50'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 4),
+              Text(
+                'Kategori: ${data['peluang'] ?? 'Tidak tersedia'}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: _getColorFromHex(data['color'] ?? '#4CAF50'),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Faktor Penilaian:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '• Nilai: ${data['faktorNilai']}%',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    Text(
+                      '• Trend: ${data['faktorTrend']}%',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    Text(
+                      '• Konsistensi: ${data['faktorKonsistensi']}%',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    Text(
+                      '• Persaingan: ${data['faktorPersaingan']}%',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  data['rekomendasi'],
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: passingRate / 100 > 1 ? 1 : passingRate / 100,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              passingRate > 10
-                  ? Colors.red
-                  : passingRate > 5
-                  ? Colors.orange
-                  : Colors.green,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Tingkat Kelulusan: ${passingRate.toStringAsFixed(2)}%',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Text(
-              'Peluang Lolos: $peluangLolos',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color:
-                    peluangLolos == 'Tinggi'
-                        ? Colors.green
-                        : peluangLolos == 'Cukup'
-                        ? Colors.orange
-                        : Colors.red,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

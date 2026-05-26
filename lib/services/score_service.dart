@@ -17,7 +17,7 @@ class ScoreService {
     }
   }
 
-  Future<Map<String, dynamic>?> getScoreByUserId(int userId) async {
+  Future<Map<String, dynamic>?> getLatestScoreByUser(int userId) async {
     final db = await DB.database;
     try {
       final result = await db.query(
@@ -29,58 +29,24 @@ class ScoreService {
       );
       return result.isNotEmpty ? result.first : null;
     } catch (e) {
-      print('Error getting score by user ID: $e');
+      print('Error getting latest score: $e');
       return null;
     }
   }
 
-  Future<int> upsertScore(Map<String, dynamic> scoreData) async {
+  Future<List<Map<String, dynamic>>> getAllScoreByUser(int userId) async {
     final db = await DB.database;
     try {
-      final userId = scoreData['user_id'] as int;
-
-      final existing = await db.query(
+      final result = await db.query(
         'score',
         where: 'user_id = ?',
         whereArgs: [userId],
+        orderBy: 'tanggal_input ASC',
       );
-
-      int totalScore = _calculateTotalScore(scoreData);
-
-      final Map<String, dynamic> dataToSave = {
-        'user_id': userId,
-        'penalaran_umum': scoreData['penalaran_umum'] as int,
-        'pengetahuan_pemahaman_umum':
-            scoreData['pengetahuan_pemahaman_umum'] as int,
-        'pemahaman_bacaan_menulis':
-            scoreData['pemahaman_bacaan_menulis'] as int,
-        'pengetahuan_kuantitatif': scoreData['pengetahuan_kuantitatif'] as int,
-        'literasi_bahasa_indonesia':
-            scoreData['literasi_bahasa_indonesia'] as int,
-        'literasi_bahasa_inggris': scoreData['literasi_bahasa_inggris'] as int,
-        'penalaran_matematika': scoreData['penalaran_matematika'] as int,
-        'total_score': totalScore,
-        'tanggal_input': DateTime.now().toIso8601String(),
-      };
-
-      if (existing.isNotEmpty) {
-        final scoreId = existing.first['id'] as int;
-        final result = await db.update(
-          'score',
-          dataToSave,
-          where: 'id = ?',
-          whereArgs: [scoreId],
-        );
-        print('Score berhasil diupdate untuk user $userId');
-        return scoreId;
-      } else {
-        final result = await db.insert('score', dataToSave);
-        print('Score berhasil disimpan untuk user $userId');
-        return result;
-      }
+      return result;
     } catch (e) {
-      print('Error upserting score: $e');
-      return -1;
+      print('Error getting all score: $e');
+      return [];
     }
   }
 
@@ -111,39 +77,6 @@ class ScoreService {
     } catch (e) {
       print('Error inserting score: $e');
       return -1;
-    }
-  }
-
-  Future<Map<String, dynamic>?> getLatestScoreByUser(int userId) async {
-    final db = await DB.database;
-    try {
-      final result = await db.query(
-        'score',
-        where: 'user_id = ?',
-        whereArgs: [userId],
-        orderBy: 'tanggal_input DESC',
-        limit: 1,
-      );
-      return result.isNotEmpty ? result.first : null;
-    } catch (e) {
-      print('Error getting latest score: $e');
-      return null;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getAllScoreByUser(int userId) async {
-    final db = await DB.database;
-    try {
-      final result = await db.query(
-        'score',
-        where: 'user_id = ?',
-        whereArgs: [userId],
-        orderBy: 'tanggal_input DESC',
-      );
-      return result;
-    } catch (e) {
-      print('Error getting all score: $e');
-      return [];
     }
   }
 
@@ -276,22 +209,24 @@ class ScoreService {
       };
     }
 
-    final latest = allScore[0];
-    final previous = allScore[1];
+    final latest = allScore.last;
+    final first = allScore.first;
 
     final improvement =
-        (latest['total_score'] ?? 0) - (previous['total_score'] ?? 0);
+        (latest['total_score'] ?? 0) - (first['total_score'] ?? 0);
+    final percentageChange =
+        first['total_score'] != 0
+            ? ((improvement / (first['total_score'] ?? 1)) * 100)
+                .toStringAsFixed(2)
+            : '0';
 
     return {
       'hasImprovement': improvement > 0,
       'improvement': improvement,
-      'percentageChange':
-          improvement > 0
-              ? ((improvement / (previous['total_score'] ?? 1)) * 100)
-                  .toStringAsFixed(2)
-              : '0',
+      'percentageChange': percentageChange,
+      'firstScore': first['total_score'],
       'latestScore': latest['total_score'],
-      'previousScore': previous['total_score'],
+      'totalTryout': allScore.length,
     };
   }
 
@@ -314,17 +249,10 @@ class ScoreService {
   }
 
   String getColorStatus(int score) {
-    if (score >= 800) {
-      return 'green';
-    } else if (score >= 700) {
-      return 'lightGreen';
-    } else if (score >= 600) {
-      return 'yellow';
-    } else if (score >= 500) {
-      return 'orange';
-    } else {
-      return 'red';
-    }
+    if (score >= 800) return 'green';
+    if (score >= 700) return 'lightGreen';
+    if (score >= 600) return 'yellow';
+    if (score >= 500) return 'orange';
+    return 'red';
   }
 }
-

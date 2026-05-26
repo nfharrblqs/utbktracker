@@ -23,14 +23,13 @@ class _ScoreScreenState extends State<ScoreScreen> {
 
   int totalScore = 0;
   bool _isLoading = false;
-  bool _isEditMode = false;
-  int? _existingScoreId;
+  int _tryoutCount = 0;
 
   @override
   void initState() {
     super.initState();
     _initializeControllers();
-    _checkExistingScore();
+    _loadTryoutCount();
   }
 
   void _initializeControllers() {
@@ -43,40 +42,11 @@ class _ScoreScreenState extends State<ScoreScreen> {
     _penalaranMatematikaController = TextEditingController();
   }
 
-  Future<void> _checkExistingScore() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final existingScore = await scoreService.getScoreByUserId(widget.userId);
-
-      if (existingScore != null) {
-        setState(() {
-          _isEditMode = true;
-          _existingScoreId = existingScore['id'];
-
-          _penalaranUmumController.text =
-              existingScore['penalaran_umum']?.toString() ?? '';
-          _pengetahuanUmumController.text =
-              existingScore['pengetahuan_pemahaman_umum']?.toString() ?? '';
-          _pemahamanBacaanController.text =
-              existingScore['pemahaman_bacaan_menulis']?.toString() ?? '';
-          _pengetahuanKuantitatifController.text =
-              existingScore['pengetahuan_kuantitatif']?.toString() ?? '';
-          _literasiBahasaIndonesiaController.text =
-              existingScore['literasi_bahasa_indonesia']?.toString() ?? '';
-          _literasiBahasaInggrisController.text =
-              existingScore['literasi_bahasa_inggris']?.toString() ?? '';
-          _penalaranMatematikaController.text =
-              existingScore['penalaran_matematika']?.toString() ?? '';
-
-          _calculateTotal();
-        });
-      }
-    } catch (e) {
-      print('Error checking existing score: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  Future<void> _loadTryoutCount() async {
+    final allScores = await scoreService.getAllScoreByUser(widget.userId);
+    setState(() {
+      _tryoutCount = allScores.length;
+    });
   }
 
   void _calculateTotal() {
@@ -133,15 +103,13 @@ class _ScoreScreenState extends State<ScoreScreen> {
           ),
         };
 
-        final result = await scoreService.upsertScore(scoreData);
+        final result = await scoreService.insertScore(scoreData);
 
         setState(() => _isLoading = false);
 
         if (result > 0) {
           await _showSuccessDialog(
-            _isEditMode
-                ? 'Score berhasil diupdate!'
-                : 'Score berhasil disimpan!',
+            'Score tryout ke-${_tryoutCount + 1} berhasil disimpan!',
           );
           if (mounted) {
             Navigator.pop(context, true);
@@ -172,9 +140,7 @@ class _ScoreScreenState extends State<ScoreScreen> {
             content: Text(message),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text('OK'),
               ),
             ],
@@ -233,9 +199,9 @@ class _ScoreScreenState extends State<ScoreScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          _isEditMode ? 'Edit Score UTBK' : 'Input Score UTBK',
-          style: const TextStyle(
+        title: const Text(
+          'Input Score UTBK',
+          style: TextStyle(
             color: Colors.black,
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -265,16 +231,14 @@ class _ScoreScreenState extends State<ScoreScreen> {
                     Row(
                       children: [
                         Icon(
-                          _isEditMode ? Icons.edit : Icons.note_add,
+                          Icons.note_add,
                           color: const Color(0xFF2B4C7E),
                           size: 20,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          _isEditMode
-                              ? 'Edit Score Setiap Sesi'
-                              : 'Masukkan Score Setiap Sesi',
-                          style: const TextStyle(
+                        const Text(
+                          'Masukkan Score Tryout',
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                             color: Color(0xFF2B4C7E),
@@ -287,14 +251,33 @@ class _ScoreScreenState extends State<ScoreScreen> {
                       'Score berkisar 0-1000',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                    if (_isEditMode)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Edit score Anda di sini',
-                          style: TextStyle(fontSize: 11, color: Colors.orange),
-                        ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.history,
+                            size: 16,
+                            color: Colors.blue[700],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Tryout ke-${_tryoutCount + 1}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -507,17 +490,14 @@ class _ScoreScreenState extends State<ScoreScreen> {
                     strokeWidth: 2,
                   ),
                 )
-                : Row(
+                : const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      _isEditMode ? Icons.update : Icons.save,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 10),
+                    Icon(Icons.save, color: Colors.white),
+                    SizedBox(width: 10),
                     Text(
-                      _isEditMode ? 'Update Score' : 'Simpan Score',
-                      style: const TextStyle(
+                      'Simpan Score',
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
