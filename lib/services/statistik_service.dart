@@ -1,4 +1,5 @@
 import 'package:utbktracker/db/db.dart';
+import 'dart:math';
 
 class StatistikService {
   Future<List<Map<String, dynamic>>> getAllPTN() async {
@@ -65,7 +66,7 @@ class StatistikService {
     }
   }
 
-  Future<int> getUserCurrentScore(int userId) async {
+  Future<int?> getUserCurrentScore(int userId) async {
     final db = await DB.database;
     try {
       final result = await db.query(
@@ -77,14 +78,18 @@ class StatistikService {
       );
 
       if (result.isNotEmpty) {
-        final totalScore = result.first['total_score'] as int?;
-        return totalScore ?? 600;
+        return result.first['total_score'] as int?;
       }
-      return 600;
+      return null;
     } catch (e) {
       print('Error getting user current score: $e');
-      return 600;
+      return null;
     }
+  }
+
+  Future<bool> hasUserScore(int userId) async {
+    final score = await getUserCurrentScore(userId);
+    return score != null;
   }
 
   Future<List<Map<String, dynamic>>> getUserScoreHistory(int userId) async {
@@ -103,7 +108,7 @@ class StatistikService {
     }
   }
 
-  Future<double> getUserAverageScore(int userId) async {
+  Future<double?> getUserAverageScore(int userId) async {
     final db = await DB.database;
     try {
       final result = await db.rawQuery(
@@ -118,10 +123,10 @@ class StatistikService {
       if (result.isNotEmpty && result.first['avg_score'] != null) {
         return result.first['avg_score'] as double;
       }
-      return 600.0;
+      return null;
     } catch (e) {
       print('Error getting user average score: $e');
-      return 600.0;
+      return null;
     }
   }
 
@@ -175,30 +180,6 @@ class StatistikService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllProdiWithPTN() async {
-    final db = await DB.database;
-    try {
-      final result = await db.rawQuery('''
-        SELECT 
-          p.id,
-          p.nama as prodi_nama,
-          p.jenjang,
-          p.daya_tampung,
-          p.peminat,
-          p.ptn_id,
-          ptn.nama as ptn_nama,
-          ptn.kota
-        FROM prodi p
-        JOIN ptn ON p.ptn_id = ptn.id
-        ORDER BY ptn.nama, p.nama
-      ''');
-      return result;
-    } catch (e) {
-      print('Error getting all Prodi with PTN: $e');
-      return [];
-    }
-  }
-
   int calculateScoreGap(int currentScore, int targetScore) {
     return targetScore - currentScore;
   }
@@ -215,159 +196,385 @@ class StatistikService {
     };
   }
 
-  Future<List<Map<String, dynamic>>> getRankedProdiByDifficulty(
-    int ptnId,
-  ) async {
-    final prodi = await getProdiByPTN(ptnId);
+  Future<double?> getMeanScore(int userId) async {
+    final history = await getUserScoreHistory(userId);
 
-    prodi.sort((a, b) {
-      double rateA = calculatePassingRate(a['daya_tampung'], a['peminat']);
-      double rateB = calculatePassingRate(b['daya_tampung'], b['peminat']);
-      return rateA.compareTo(rateB);
-    });
-
-    return prodi;
-  }
-
-  Future<Map<String, dynamic>> getProdiExtremes(int ptnId) async {
-    final prodi = await getProdiByPTN(ptnId);
-
-    if (prodi.isEmpty) {
-      return {'easiest': null, 'hardest': null};
+    if (history.isEmpty) {
+      return null;
     }
 
-    Map<String, dynamic> easiest = prodi[0];
-    Map<String, dynamic> hardest = prodi[0];
-
-    double easyRate = calculatePassingRate(
-      easiest['daya_tampung'],
-      easiest['peminat'],
-    );
-    double hardRate = calculatePassingRate(
-      hardest['daya_tampung'],
-      hardest['peminat'],
-    );
-
-    for (var p in prodi) {
-      double rate = calculatePassingRate(p['daya_tampung'], p['peminat']);
-      if (rate > easyRate) {
-        easiest = p;
-        easyRate = rate;
-      }
-      if (rate < hardRate) {
-        hardest = p;
-        hardRate = rate;
-      }
+    int total = 0;
+    for (var score in history) {
+      total += score['total_score'] as int;
     }
-
-    return {
-      'easiest': easiest,
-      'hardest': hardest,
-      'easyRate': easyRate,
-      'hardRate': hardRate,
-    };
+    return total / history.length;
   }
 
-  int calculateScoreNeeded(int dayaTampung, int peminat, int baselineScore) {
-    double passingRate = calculatePassingRate(dayaTampung, peminat);
+  Future<double?> getMedianScore(int userId) async {
+    final history = await getUserScoreHistory(userId);
 
-    if (passingRate > 10) {
-      return baselineScore - 50;
-    } else if (passingRate > 5) {
-      return baselineScore;
-    } else if (passingRate > 2) {
-      return baselineScore + 50;
+    if (history.isEmpty) {
+      return null;
+    }
+
+    List<int> scores = history.map((s) => s['total_score'] as int).toList();
+    scores.sort();
+    int mid = scores.length ~/ 2;
+
+    if (scores.length % 2 == 0) {
+      return (scores[mid - 1] + scores[mid]) / 2;
     } else {
-      return baselineScore + 100;
+      return scores[mid].toDouble();
     }
   }
 
-  String getProdiDifficultyRecommendation(double passingRate) {
-    if (passingRate > 10) {
-      return 'Prodi ini relatif mudah dengan banyak kesempatan masuk';
-    } else if (passingRate > 5) {
-      return 'Prodi ini memiliki tingkat kesulitan menengah';
-    } else if (passingRate > 2) {
-      return 'Prodi ini cukup sulit, butuh persiapan matang';
-    } else {
-      return 'Prodi ini sangat kompetitif, butuh skor tertinggi';
+  Future<double?> getStdDeviation(int userId) async {
+    final history = await getUserScoreHistory(userId);
+    if (history.length < 2) return null;
+
+    List<int> scores = history.map((s) => s['total_score'] as int).toList();
+    final mean = await getMeanScore(userId);
+    if (mean == null) return null;
+
+    double sumSquaredDiff = 0;
+    for (var score in scores) {
+      sumSquaredDiff += pow(score - mean, 2);
+    }
+
+    return sqrt(sumSquaredDiff / scores.length);
+  }
+
+  Future<double?> getPercentile(int userId, int targetScore) async {
+    final history = await getUserScoreHistory(userId);
+    if (history.isEmpty) return null;
+
+    List<int> scores = history.map((s) => s['total_score'] as int).toList();
+    int countBelow = scores.where((s) => s < targetScore).length;
+
+    return (countBelow / scores.length) * 100;
+  }
+
+  Future<double> getNationalAverageImprovement() async {
+    final db = await DB.database;
+    try {
+      final result = await db.rawQuery('''
+        SELECT 
+          user_id,
+          MIN(total_score) as first_score,
+          MAX(total_score) as last_score,
+          COUNT(*) as total_tryout
+        FROM score
+        GROUP BY user_id
+        HAVING total_tryout >= 2
+      ''');
+
+      if (result.isEmpty) return 0.05;
+
+      double totalImprovement = 0;
+      int validUsers = 0;
+
+      for (var user in result) {
+        int first = user['first_score'] as int;
+        int last = user['last_score'] as int;
+        if (first > 0) {
+          double improvement = (last - first) / first;
+          totalImprovement += improvement;
+          validUsers++;
+        }
+      }
+
+      return validUsers > 0 ? totalImprovement / validUsers : 0.05;
+    } catch (e) {
+      print('Error getting national average improvement: $e');
+      return 0.05;
     }
   }
 
-  Future<List<Map<String, dynamic>>> searchProdi(String query) async {
+  Future<double?> getNationalStdDeviation() async {
+    final db = await DB.database;
+    try {
+      final result = await db.rawQuery('''
+        SELECT 
+          AVG(total_score) as mean_score,
+          COUNT(*) as total_data
+        FROM score
+      ''');
+
+      if (result.isEmpty || result.first['mean_score'] == null) return null;
+
+      double mean = result.first['mean_score'] as double;
+
+      final varianceResult = await db.rawQuery(
+        '''
+        SELECT SUM((total_score - ?) * (total_score - ?)) as sum_squared
+        FROM score
+      ''',
+        [mean, mean],
+      );
+
+      if (varianceResult.isEmpty) return null;
+
+      double sumSquared = varianceResult.first['sum_squared'] as double;
+      int totalData = result.first['total_data'] as int;
+
+      if (totalData < 2) return null;
+
+      return sqrt(sumSquared / totalData);
+    } catch (e) {
+      print('Error getting national std deviation: $e');
+      return null;
+    }
+  }
+
+  Future<double?> getNationalMeanScore() async {
+    final db = await DB.database;
+    try {
+      final result = await db.rawQuery('''
+        SELECT AVG(total_score) as avg_score FROM score
+      ''');
+
+      if (result.isNotEmpty && result.first['avg_score'] != null) {
+        return result.first['avg_score'] as double;
+      }
+      return null;
+    } catch (e) {
+      print('Error getting national mean score: $e');
+      return null;
+    }
+  }
+
+  Future<double?> getUserPercentileNational(int userId, int userScore) async {
     final db = await DB.database;
     try {
       final result = await db.rawQuery(
         '''
-        SELECT 
-          p.id,
-          p.nama as prodi_nama,
-          p.jenjang,
-          p.daya_tampung,
-          p.peminat,
-          p.ptn_id,
-          ptn.nama as ptn_nama,
-          ptn.kota
-        FROM prodi p
-        JOIN ptn ON p.ptn_id = ptn.id
-        WHERE p.nama LIKE ?
-        ORDER BY ptn.nama, p.nama
+        SELECT COUNT(*) as count_below 
+        FROM score 
+        WHERE total_score < ?
       ''',
-        ['%$query%'],
+        [userScore],
       );
-      return result;
+
+      final totalResult = await db.rawQuery('''
+        SELECT COUNT(*) as total FROM score
+      ''');
+
+      int countBelow = result.first['count_below'] as int;
+      int total = totalResult.first['total'] as int;
+
+      if (total == 0) return 50;
+      return (countBelow / total) * 100;
     } catch (e) {
-      print('Error searching Prodi: $e');
-      return [];
+      print('Error getting user percentile national: $e');
+      return null;
     }
   }
 
-  Future<Map<String, dynamic>> getPTNStatistics(int ptnId) async {
-    final prodi = await getProdiByPTN(ptnId);
-
-    if (prodi.isEmpty) {
-      return {
-        'totalProdi': 0,
-        'totalDayaTampung': 0,
-        'totalPeminat': 0,
-        'averagePassingRate': 0,
-      };
+  Future<Map<String, dynamic>?> calculatePeluangStatistika({
+    required int currentScore,
+    required int targetScore,
+    required int userId,
+    required int dayaTampung,
+    required int peminat,
+  }) async {
+    final hasScore = await hasUserScore(userId);
+    if (!hasScore) {
+      return null;
     }
 
-    int totalProdi = prodi.length;
-    int totalDayaTampung = 0;
-    int totalPeminat = 0;
+    final userHistory = await getUserScoreHistory(userId);
+    List<int> userScores =
+        userHistory.map((s) => s['total_score'] as int).toList();
 
-    for (var p in prodi) {
-      totalDayaTampung += (p['daya_tampung'] as int);
-      totalPeminat += (p['peminat'] as int);
+    final nationalMean = await getNationalMeanScore();
+    final nationalStdDev = await getNationalStdDeviation();
+    final nationalTrend = await getNationalAverageImprovement();
+    final userPercentile = await getUserPercentileNational(
+      userId,
+      currentScore,
+    );
+
+    print('=== DEBUG STATISTIK NASIONAL ===');
+    print('National Mean: $nationalMean');
+    print('National Std Dev: $nationalStdDev');
+    print('National Trend: $nationalTrend');
+    print('User Percentile: $userPercentile%');
+
+    double faktorNilai;
+    int selisih = targetScore - currentScore;
+
+    if (selisih <= 0) {
+      faktorNilai = 1.0;
+    } else {
+      faktorNilai = 1.0 - (selisih / targetScore).clamp(0.0, 0.8);
     }
 
-    double averagePassingRate = calculatePassingRate(
-      totalDayaTampung,
-      totalPeminat,
+    double faktorTrend = 0.5;
+    if (userPercentile != null) {
+      if (userPercentile >= 80)
+        faktorTrend = 0.9;
+      else if (userPercentile >= 60)
+        faktorTrend = 0.7;
+      else if (userPercentile >= 40)
+        faktorTrend = 0.5;
+      else if (userPercentile >= 20)
+        faktorTrend = 0.3;
+      else
+        faktorTrend = 0.1;
+    }
+
+    double faktorKonsistensi = 0.5;
+    if (nationalMean != null && nationalStdDev != null) {
+      double zScore = (currentScore - nationalMean) / nationalStdDev;
+
+      if (zScore >= 1.5)
+        faktorKonsistensi = 0.9;
+      else if (zScore >= 0.5)
+        faktorKonsistensi = 0.7;
+      else if (zScore >= -0.5)
+        faktorKonsistensi = 0.5;
+      else if (zScore >= -1.5)
+        faktorKonsistensi = 0.3;
+      else
+        faktorKonsistensi = 0.1;
+
+      print('Z-Score User: $zScore, faktorKonsistensi: $faktorKonsistensi');
+    }
+
+    double passingRate = peminat > 0 ? (dayaTampung / peminat) * 100 : 0;
+    double faktorPersaingan;
+    if (passingRate > 15)
+      faktorPersaingan = 0.9;
+    else if (passingRate > 10)
+      faktorPersaingan = 0.7;
+    else if (passingRate > 5)
+      faktorPersaingan = 0.5;
+    else if (passingRate > 2)
+      faktorPersaingan = 0.3;
+    else
+      faktorPersaingan = 0.1;
+
+    double totalPeluang =
+        ((faktorNilai * 0.4) +
+            (faktorTrend * 0.2) +
+            (faktorKonsistensi * 0.2) +
+            (faktorPersaingan * 0.2)) *
+        100;
+
+    totalPeluang = totalPeluang.clamp(0.0, 100.0);
+
+    String kategori;
+    if (totalPeluang >= 80)
+      kategori = 'Sangat Tinggi';
+    else if (totalPeluang >= 60)
+      kategori = 'Tinggi';
+    else if (totalPeluang >= 40)
+      kategori = 'Sedang';
+    else if (totalPeluang >= 20)
+      kategori = 'Rendah';
+    else
+      kategori = 'Sangat Rendah';
+
+    String rekomendasi = _generateNationalRecommendation(
+      currentScore: currentScore,
+      targetScore: targetScore,
+      selisih: selisih,
+      faktorNilai: faktorNilai,
+      faktorTrend: faktorTrend,
+      faktorKonsistensi: faktorKonsistensi,
+      passingRate: passingRate,
+      totalPeluang: totalPeluang,
+      userPercentile: userPercentile,
+      nationalMean: nationalMean,
     );
 
     return {
-      'totalProdi': totalProdi,
-      'totalDayaTampung': totalDayaTampung,
-      'totalPeminat': totalPeminat,
-      'averagePassingRate': averagePassingRate,
+      'peluang': kategori,
+      'persentase': totalPeluang.toStringAsFixed(1),
+      'selisih': selisih,
+      'faktorNilai': (faktorNilai * 100).toStringAsFixed(0),
+      'faktorTrend': (faktorTrend * 100).toStringAsFixed(0),
+      'faktorKonsistensi': (faktorKonsistensi * 100).toStringAsFixed(0),
+      'faktorPersaingan': (faktorPersaingan * 100).toStringAsFixed(0),
+      'passingRate': passingRate.toStringAsFixed(1),
+      'rekomendasi': rekomendasi,
+      'color': _getColorByPercentage(totalPeluang),
+      'userPercentile': userPercentile?.toStringAsFixed(1) ?? 'N/A',
+      'nationalMean': nationalMean?.toStringAsFixed(0) ?? 'N/A',
     };
   }
 
-  int calculatePercentileScore(double passingRate, int baseScore) {
-    if (passingRate > 15) {
-      return baseScore - 100;
-    } else if (passingRate > 10) {
-      return baseScore - 50;
-    } else if (passingRate > 5) {
-      return baseScore;
-    } else if (passingRate > 2) {
-      return baseScore + 50;
+  String _generateNationalRecommendation({
+    required int currentScore,
+    required int targetScore,
+    required int selisih,
+    required double faktorNilai,
+    required double faktorTrend,
+    required double faktorKonsistensi,
+    required double passingRate,
+    required double totalPeluang,
+    required double? userPercentile,
+    required double? nationalMean,
+  }) {
+    List<String> rekomendasi = [];
+
+    if (faktorNilai < 0.5) {
+      rekomendasi.add(
+        'Target nilai terlalu tinggi. Butuh peningkatan ${selisih.abs()} poin.',
+      );
+    } else if (faktorNilai < 0.8) {
+      rekomendasi.add('Perlu peningkatan ${selisih.abs()} poin lagi.');
     } else {
-      return baseScore + 100;
+      rekomendasi.add('Nilai Anda sudah memenuhi target!');
     }
+
+    if (userPercentile != null) {
+      if (userPercentile >= 80) {
+        rekomendasi.add(
+          'Anda berada di ${userPercentile.toStringAsFixed(0)}% teratas nasional!',
+        );
+      } else if (userPercentile >= 60) {
+        rekomendasi.add('Anda berada di atas rata-rata nasional.');
+      } else if (userPercentile >= 40) {
+        rekomendasi.add('Anda berada di sekitar rata-rata nasional.');
+      } else if (userPercentile >= 20) {
+        rekomendasi.add('Anda berada di bawah rata-rata nasional.');
+      } else {
+        rekomendasi.add(
+          'Peringkat Anda masih rendah. Perlu peningkatan signifikan.',
+        );
+      }
+    }
+
+    if (faktorKonsistensi > 0.7) {
+      rekomendasi.add('Nilai Anda sangat kompetitif secara nasional!');
+    } else if (faktorKonsistensi < 0.3) {
+      rekomendasi.add('Nilai Anda masih perlu ditingkatkan untuk bersaing.');
+    }
+
+    if (passingRate < 5) {
+      rekomendasi.add(
+        'Prodi ini sangat kompetitif (persaingan ${passingRate.toStringAsFixed(1)}%).',
+      );
+    } else if (passingRate > 10) {
+      rekomendasi.add('Prodi ini memiliki peluang lebih besar.');
+    }
+
+    if (nationalMean != null && currentScore < nationalMean) {
+      rekomendasi.add(
+        'Targetkan nilai minimal ${nationalMean.toStringAsFixed(0)} (rata-rata nasional).',
+      );
+    }
+
+    return rekomendasi.join(' ');
+  }
+
+  String _getColorByPercentage(double percentage) {
+    if (percentage >= 80) return '#4CAF50';
+    if (percentage >= 60) return '#8BC34A';
+    if (percentage >= 40) return '#FFC107';
+    if (percentage >= 20) return '#FF9800';
+    return '#F44336';
   }
 
   Future<int> savePilihan(
@@ -507,46 +714,85 @@ class StatistikService {
     }
   }
 
-  Future<Map<String, dynamic>> getPilihanRecommendation(
-    int userId,
-    int currentScore,
-  ) async {
+  Future<List<Map<String, dynamic>>> getAllProdiWithPTN() async {
     final db = await DB.database;
     try {
-      final result = await db.rawQuery(
-        '''
+      final result = await db.rawQuery('''
         SELECT 
-          p.urutan,
+          p.id,
+          p.nama as prodi_nama,
+          p.jenjang,
+          p.daya_tampung,
+          p.peminat,
+          p.ptn_id,
           ptn.nama as ptn_nama,
-          prodi.nama as prodi_nama,
-          prodi.target_score,
-          prodi.target_score - ? as score_gap,
-          CASE
-            WHEN prodi.target_score - ? <= 0 THEN 'Tinggi'
-            WHEN prodi.target_score - ? <= 25 THEN 'Cukup'
-            WHEN prodi.target_score - ? <= 50 THEN 'Rendah/Cukup'
-            ELSE 'Rendah'
-          END as peluang_lolos,
-          prodi.daya_tampung,
-          prodi.peminat
-        FROM pilihan p
+          ptn.kota
+        FROM prodi p
         JOIN ptn ON p.ptn_id = ptn.id
-        JOIN prodi ON p.prodi_id = prodi.id
-        WHERE p.user_id = ?
-        ORDER BY p.urutan ASC
-      ''',
-        [currentScore, currentScore, currentScore, currentScore, userId],
-      );
-
-      return {'success': true, 'data': result};
+        ORDER BY ptn.nama, p.nama
+      ''');
+      return result;
     } catch (e) {
-      print('Error getting recommendation: $e');
-      return {'success': false, 'error': e.toString()};
+      print('Error getting all Prodi with PTN: $e');
+      return [];
     }
   }
 
-  bool validatePilihan(List<Map<String, dynamic>> pilihanList) {
-    return pilihanList.isNotEmpty;
+  Future<List<Map<String, dynamic>>> getRankedProdiByDifficulty(
+    int ptnId,
+  ) async {
+    final prodi = await getProdiByPTN(ptnId);
+    prodi.sort((a, b) {
+      double rateA = calculatePassingRate(a['daya_tampung'], a['peminat']);
+      double rateB = calculatePassingRate(b['daya_tampung'], b['peminat']);
+      return rateA.compareTo(rateB);
+    });
+    return prodi;
+  }
+
+  Future<Map<String, dynamic>> getProdiExtremes(int ptnId) async {
+    final prodi = await getProdiByPTN(ptnId);
+    if (prodi.isEmpty) {
+      return {'easiest': null, 'hardest': null};
+    }
+
+    Map<String, dynamic> easiest = prodi[0];
+    Map<String, dynamic> hardest = prodi[0];
+    double easyRate = calculatePassingRate(
+      easiest['daya_tampung'],
+      easiest['peminat'],
+    );
+    double hardRate = calculatePassingRate(
+      hardest['daya_tampung'],
+      hardest['peminat'],
+    );
+
+    for (var p in prodi) {
+      double rate = calculatePassingRate(p['daya_tampung'], p['peminat']);
+      if (rate > easyRate) {
+        easiest = p;
+        easyRate = rate;
+      }
+      if (rate < hardRate) {
+        hardest = p;
+        hardRate = rate;
+      }
+    }
+
+    return {
+      'easiest': easiest,
+      'hardest': hardest,
+      'easyRate': easyRate,
+      'hardRate': hardRate,
+    };
+  }
+
+  String getProdiDifficultyRecommendation(double passingRate) {
+    if (passingRate > 10)
+      return 'Prodi ini relatif mudah dengan banyak kesempatan masuk';
+    if (passingRate > 5) return 'Prodi ini memiliki tingkat kesulitan menengah';
+    if (passingRate > 2) return 'Prodi ini cukup sulit, butuh persiapan matang';
+    return 'Prodi ini sangat kompetitif, butuh skor tertinggi';
   }
 
   Future<List<Map<String, dynamic>>> getPeluangLolosAllPilihan(
@@ -555,7 +801,6 @@ class StatistikService {
   ) async {
     try {
       final pilihan = await getPilihanWithDetails(userId);
-
       List<Map<String, dynamic>> result = [];
 
       for (var p in pilihan) {
@@ -573,7 +818,6 @@ class StatistikService {
           'color': getPeluangColor(peluang),
         });
       }
-
       return result;
     } catch (e) {
       print('Error getting peluang lolos: $e');
@@ -581,34 +825,48 @@ class StatistikService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getPassingRateAllPilihan(
+  Future<List<Map<String, dynamic>>> rankingPeluang(
+    List<int> prodiIds,
     int userId,
   ) async {
-    try {
-      final pilihan = await getPilihanWithDetails(userId);
+    List<Map<String, dynamic>> hasil = [];
+    final currentScore = await getUserCurrentScore(userId);
 
-      List<Map<String, dynamic>> result = [];
+    if (currentScore == null) return [];
 
-      for (var p in pilihan) {
-        final dayaTampung = p['daya_tampung'] as int;
-        final peminat = p['peminat'] as int;
-        final passingRate = calculatePassingRate(dayaTampung, peminat);
+    for (var prodiId in prodiIds) {
+      final prodi = await getProdiById(prodiId);
+      if (prodi != null) {
+        final dayaTampung = prodi['daya_tampung'] as int;
+        final peminat = prodi['peminat'] as int;
+        final targetScore = prodi['target_score'] as int;
 
-        result.add({
-          'urutan': p['urutan'],
-          'ptn_nama': p['ptn_nama'],
-          'prodi_nama': p['prodi_nama'],
-          'daya_tampung': dayaTampung,
-          'peminat': peminat,
-          'passing_rate': passingRate,
-          'difficulty': getProdiDifficultyRecommendation(passingRate),
-        });
+        final statistik = await calculatePeluangStatistika(
+          currentScore: currentScore,
+          targetScore: targetScore,
+          userId: userId,
+          dayaTampung: dayaTampung,
+          peminat: peminat,
+        );
+
+        if (statistik != null) {
+          hasil.add({
+            'prodiId': prodiId,
+            'namaProdi': prodi['nama'],
+            'targetScore': targetScore,
+            'peluang': statistik['peluang'],
+            'persentase': statistik['persentase'],
+            'rekomendasi': statistik['rekomendasi'],
+          });
+        }
       }
-
-      return result;
-    } catch (e) {
-      print('Error getting passing rate: $e');
-      return [];
     }
+
+    hasil.sort(
+      (a, b) => double.parse(
+        b['persentase'],
+      ).compareTo(double.parse(a['persentase'])),
+    );
+    return hasil;
   }
 }

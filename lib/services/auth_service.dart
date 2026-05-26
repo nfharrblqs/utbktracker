@@ -4,6 +4,7 @@ import 'dart:convert';
 
 class AuthService {
   static int? currentUserId;
+  static String? currentUserName;
 
   Future<bool> login(String email, String password) async {
     try {
@@ -20,6 +21,7 @@ class AuthService {
 
       if (result.isNotEmpty) {
         currentUserId = result.first['id'] as int;
+        currentUserName = result.first['nama'] as String?;
         return true;
       }
       return false;
@@ -52,11 +54,16 @@ class AuthService {
     return currentUserId;
   }
 
-  static void logout() {
-    currentUserId = null;
+  static String? getCurrentUserName() {
+    return currentUserName;
   }
 
-  Future<bool> register(String email, String password) async {
+  static void logout() {
+    currentUserId = null;
+    currentUserName = null;
+  }
+
+  Future<bool> register(String nama, String email, String password) async {
     try {
       final db = await DB.database;
 
@@ -75,9 +82,11 @@ class AuthService {
       final result = await db.insert('users', {
         'email': cleanEmail,
         'password': _hashPassword(password),
+        'nama': nama.trim(),
       });
 
       currentUserId = result;
+      currentUserName = nama.trim();
       return true;
     } catch (e) {
       print('Register error: $e');
