@@ -1,11 +1,77 @@
 import 'package:flutter/material.dart';
+import 'package:utbktracker/screens/score_screen.dart';
+import 'package:utbktracker/services/dashboard_service.dart';
 import 'statistikscreen.dart';
+import '../services/auth_service.dart';
 
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+class DashboardScreen extends StatefulWidget {
+  final int? userId;
+
+  const DashboardScreen({super.key, this.userId});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final DashboardService _dashboardService = DashboardService();
+  List<Map<String, dynamic>> _userPilihan = [];
+  bool _isLoading = true;
+  int _currentScore = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserPilihan();
+    _loadCurrentScore();
+  }
+
+  Future<void> _loadUserPilihan() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final currentUserId =
+          widget.userId ?? AuthService.getCurrentUserId() ?? 1;
+      final pilihan = await _dashboardService.getPilihanByUser(currentUserId);
+
+      setState(() {
+        _userPilihan = pilihan;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading pilihan: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadCurrentScore() async {
+    try {
+      final currentUserId =
+          widget.userId ?? AuthService.getCurrentUserId() ?? 1;
+      final score = await _dashboardService.getUserCurrentScore(currentUserId);
+      setState(() {
+        _currentScore = score;
+      });
+      print('Current score loaded: $_currentScore');
+    } catch (e) {
+      print('Error loading current score: $e');
+    }
+  }
+
+  String _getDisplayText(Map<String, dynamic> pilihan) {
+    final ptnNama = pilihan['ptn_nama'] ?? '';
+    final prodiNama = pilihan['prodi_nama'] ?? '';
+    return '$ptnNama ($prodiNama)';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = widget.userId ?? AuthService.getCurrentUserId() ?? 1;
+
     return Scaffold(
       backgroundColor: const Color(0xFFE6F2FA),
       body: SafeArea(
@@ -26,9 +92,9 @@ class DashboardScreen extends StatelessWidget {
                     color: Color(0xFF3B5F8F),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Welcome User',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  child: Text(
+                    'Welcome User #$currentUserId',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
               ],
@@ -68,9 +134,9 @@ class DashboardScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const Text(
-                              '600',
-                              style: TextStyle(
+                            Text(
+                              _currentScore.toString(),
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -88,6 +154,7 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 15),
+
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(12),
@@ -96,6 +163,7 @@ class DashboardScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(25),
                     ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'Pilihan Kampus',
@@ -105,25 +173,65 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _KampusItem('PENS (Sains Data)'),
-                        _KampusItem('ITS (Teknik Informatika)'),
-                        _KampusItem('PENS (Teknik Elektro)'),
+
+                        if (_isLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Center(
+                              child: SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (_userPilihan.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text(
+                              'Belum ada pilihan',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          )
+                        else
+                          ..._userPilihan
+                              .map((pilihan) {
+                                return _KampusItem(_getDisplayText(pilihan));
+                              })
+                              .take(3),
+
+                        const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.bottomRight,
                           child: TextButton(
-                            onPressed: () {
-                              Navigator.push(
+                            onPressed: () async {
+                              final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const StatistikScreen(),
+                                  builder:
+                                      (context) => StatistikScreen(
+                                        userId: currentUserId,
+                                      ),
                                 ),
                               );
+
+                              if (result == true) {
+                                _loadUserPilihan();
+                              }
                             },
                             child: const Text(
-                              'Edit Pilihan ✎',
+                              'Edit Pilihan',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.black54,
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -134,6 +242,50 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ],
             ),
+
+            const SizedBox(height: 20),
+
+            Container(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ScoreScreen(userId: currentUserId),
+                    ),
+                  );
+
+                  if (result == true) {
+                    _loadCurrentScore();
+                    _loadUserPilihan();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2B4C7E),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.edit_note, color: Colors.white),
+                    SizedBox(width: 10),
+                    Text(
+                      'Input Score UTBK',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: 20),
             Expanded(
               child: ListView.builder(
