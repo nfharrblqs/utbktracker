@@ -88,40 +88,6 @@ class DashboardService {
     }
   }
 
-  Future<Map<String, dynamic>?> getPilihanByUrutan(
-    int userId,
-    int urutan,
-  ) async {
-    final db = await database;
-    try {
-      final result = await db.rawQuery(
-        '''
-        SELECT 
-          p.urutan,
-          p.ptn_id,
-          p.prodi_id,
-          ptn.nama as ptn_nama,
-          ptn.kota,
-          prodi.nama as prodi_nama,
-          prodi.jenjang,
-          prodi.target_score,
-          prodi.daya_tampung,
-          prodi.peminat
-        FROM pilihan p
-        JOIN ptn ON p.ptn_id = ptn.id
-        JOIN prodi ON p.prodi_id = prodi.id
-        WHERE p.user_id = ? AND p.urutan = ?
-      ''',
-        [userId, urutan],
-      );
-
-      return result.isNotEmpty ? result.first : null;
-    } catch (e) {
-      print('Error getting pilihan by urutan: $e');
-      return null;
-    }
-  }
-
   Future<bool> deletePilihan(int userId, int urutan) async {
     final db = await database;
     try {
@@ -135,52 +101,6 @@ class DashboardService {
       print('Error deleting pilihan: $e');
       return false;
     }
-  }
-
-  Future<bool> deleteAllPilihan(int userId) async {
-    final db = await database;
-    try {
-      await db.delete('pilihan', where: 'user_id = ?', whereArgs: [userId]);
-      return true;
-    } catch (e) {
-      print('Error deleting all pilihan: $e');
-      return false;
-    }
-  }
-
-  Map<String, dynamic> hitungPeluang({
-    required int currentScore,
-    required int targetScore,
-    required int dayaTampung,
-    required int peminat,
-  }) {
-    final selisih = targetScore - currentScore;
-    final passingRate = peminat > 0 ? (dayaTampung / peminat) * 100 : 0;
-
-    String statusPeluang;
-    String rekomendasi;
-
-    if (selisih <= 0) {
-      statusPeluang = 'Tinggi';
-      rekomendasi = 'Skor Anda sudah memenuhi target! Pertahankan performa.';
-    } else if (selisih <= 50) {
-      statusPeluang = 'Cukup';
-      rekomendasi = 'Perlu peningkatan $selisih poin. Fokus pada tryout rutin.';
-    } else if (selisih <= 100) {
-      statusPeluang = 'Rendah';
-      rekomendasi = 'Butuh peningkatan $selisih poin. Ikuti bimbingan belajar.';
-    } else {
-      statusPeluang = 'Sangat Rendah';
-      rekomendasi = 'Pertimbangkan prodi lain atau persiapan lebih matang.';
-    }
-
-    return {
-      'statusPeluang': statusPeluang,
-      'selisih': selisih,
-      'passingRate': passingRate,
-      'rekomendasi': rekomendasi,
-      'targetScore': targetScore,
-    };
   }
 
   Future<int?> getUserCurrentScore(int userId) async {
@@ -204,22 +124,6 @@ class DashboardService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllUserScores(int userId) async {
-    final db = await database;
-    try {
-      final result = await db.query(
-        'score',
-        where: 'user_id = ?',
-        whereArgs: [userId],
-        orderBy: 'tanggal_input ASC',
-      );
-      return result;
-    } catch (e) {
-      print('Error getting all scores: $e');
-      return [];
-    }
-  }
-
   Future<List<Map<String, dynamic>>> getUserScoreHistory(int userId) async {
     final db = await database;
     try {
@@ -233,6 +137,21 @@ class DashboardService {
     } catch (e) {
       print('Error getting user score history: $e');
       return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserDataById(int userId) async {
+    final db = await database;
+    try {
+      final result = await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [userId],
+      );
+      return result.isNotEmpty ? result.first : null;
+    } catch (e) {
+      print('Error getting user data by ID: $e');
+      return null;
     }
   }
 }

@@ -193,22 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                   ),
                   const SizedBox(height: 15),
-                  const Text(
-                    'Or Login With',
-                    style: TextStyle(color: Color(0xFF2B4C7E), fontSize: 12),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _socialIcon(Icons.g_mobiledata),
-                      const SizedBox(width: 15),
-                      _socialIcon(Icons.facebook),
-                      const SizedBox(width: 15),
-                      _socialIcon(Icons.close),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(

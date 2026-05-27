@@ -29,28 +29,6 @@ class StatistikService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllProdi() async {
-    final db = await DB.database;
-    try {
-      final result = await db.query('prodi', orderBy: 'nama ASC');
-      return result;
-    } catch (e) {
-      print('Error getting all Prodi: $e');
-      return [];
-    }
-  }
-
-  Future<Map<String, dynamic>?> getPTNById(int ptnId) async {
-    final db = await DB.database;
-    try {
-      final result = await db.query('ptn', where: 'id = ?', whereArgs: [ptnId]);
-      return result.isNotEmpty ? result.first : null;
-    } catch (e) {
-      print('Error getting PTN by ID: $e');
-      return null;
-    }
-  }
-
   Future<Map<String, dynamic>?> getProdiById(int prodiId) async {
     final db = await DB.database;
     try {
@@ -108,28 +86,6 @@ class StatistikService {
     }
   }
 
-  Future<double?> getUserAverageScore(int userId) async {
-    final db = await DB.database;
-    try {
-      final result = await db.rawQuery(
-        '''
-        SELECT AVG(total_score) as avg_score 
-        FROM score 
-        WHERE user_id = ?
-      ''',
-        [userId],
-      );
-
-      if (result.isNotEmpty && result.first['avg_score'] != null) {
-        return result.first['avg_score'] as double;
-      }
-      return null;
-    } catch (e) {
-      print('Error getting user average score: $e');
-      return null;
-    }
-  }
-
   double calculatePassingRate(int dayaTampung, int peminat) {
     if (peminat == 0) return 0;
     return (dayaTampung / peminat) * 100;
@@ -164,22 +120,6 @@ class StatistikService {
     }
   }
 
-  String getRecommendation(int currentScore, int targetScore) {
-    int difference = targetScore - currentScore;
-
-    if (difference <= 0) {
-      return 'Skor Anda sudah memenuhi target! Pertahankan performa Anda.';
-    } else if (difference <= 25) {
-      return 'Perlu peningkatan $difference poin lagi. Fokus pada tryout rutin.';
-    } else if (difference <= 50) {
-      return 'Butuh peningkatan $difference poin. Ikuti bimbingan belajar.';
-    } else if (difference <= 100) {
-      return 'Tingkatkan secara signifikan. Targetkan peningkatan $difference poin.';
-    } else {
-      return 'Perlu pelatihan intensif. Selisih $difference poin dari target.';
-    }
-  }
-
   int calculateScoreGap(int currentScore, int targetScore) {
     return targetScore - currentScore;
   }
@@ -208,50 +148,6 @@ class StatistikService {
       total += score['total_score'] as int;
     }
     return total / history.length;
-  }
-
-  Future<double?> getMedianScore(int userId) async {
-    final history = await getUserScoreHistory(userId);
-
-    if (history.isEmpty) {
-      return null;
-    }
-
-    List<int> scores = history.map((s) => s['total_score'] as int).toList();
-    scores.sort();
-    int mid = scores.length ~/ 2;
-
-    if (scores.length % 2 == 0) {
-      return (scores[mid - 1] + scores[mid]) / 2;
-    } else {
-      return scores[mid].toDouble();
-    }
-  }
-
-  Future<double?> getStdDeviation(int userId) async {
-    final history = await getUserScoreHistory(userId);
-    if (history.length < 2) return null;
-
-    List<int> scores = history.map((s) => s['total_score'] as int).toList();
-    final mean = await getMeanScore(userId);
-    if (mean == null) return null;
-
-    double sumSquaredDiff = 0;
-    for (var score in scores) {
-      sumSquaredDiff += pow(score - mean, 2);
-    }
-
-    return sqrt(sumSquaredDiff / scores.length);
-  }
-
-  Future<double?> getPercentile(int userId, int targetScore) async {
-    final history = await getUserScoreHistory(userId);
-    if (history.isEmpty) return null;
-
-    List<int> scores = history.map((s) => s['total_score'] as int).toList();
-    int countBelow = scores.where((s) => s < targetScore).length;
-
-    return (countBelow / scores.length) * 100;
   }
 
   Future<double> getNationalAverageImprovement() async {
@@ -656,24 +552,6 @@ class StatistikService {
     }
   }
 
-  Future<Map<String, dynamic>?> getPilihanByUrutan(
-    int userId,
-    int urutan,
-  ) async {
-    final db = await DB.database;
-    try {
-      final result = await db.query(
-        'pilihan',
-        where: 'user_id = ? AND urutan = ?',
-        whereArgs: [userId, urutan],
-      );
-      return result.isNotEmpty ? result.first : null;
-    } catch (e) {
-      print('Error getting pilihan by urutan: $e');
-      return null;
-    }
-  }
-
   Future<bool> deletePilihan(int pilihanId) async {
     final db = await DB.database;
     try {
@@ -689,184 +567,6 @@ class StatistikService {
     }
   }
 
-  Future<bool> deleteAllPilihanByUser(int userId) async {
-    final db = await DB.database;
-    try {
-      await db.delete('pilihan', where: 'user_id = ?', whereArgs: [userId]);
-      return true;
-    } catch (e) {
-      print('Error deleting all pilihan: $e');
-      return false;
-    }
-  }
 
-  Future<int> getPilihanCount(int userId) async {
-    final db = await DB.database;
-    try {
-      final result = await db.rawQuery(
-        'SELECT COUNT(*) as count FROM pilihan WHERE user_id = ?',
-        [userId],
-      );
-      return (result[0]['count'] as int?) ?? 0;
-    } catch (e) {
-      print('Error getting pilihan count: $e');
-      return 0;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getAllProdiWithPTN() async {
-    final db = await DB.database;
-    try {
-      final result = await db.rawQuery('''
-        SELECT 
-          p.id,
-          p.nama as prodi_nama,
-          p.jenjang,
-          p.daya_tampung,
-          p.peminat,
-          p.ptn_id,
-          ptn.nama as ptn_nama,
-          ptn.kota
-        FROM prodi p
-        JOIN ptn ON p.ptn_id = ptn.id
-        ORDER BY ptn.nama, p.nama
-      ''');
-      return result;
-    } catch (e) {
-      print('Error getting all Prodi with PTN: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getRankedProdiByDifficulty(
-    int ptnId,
-  ) async {
-    final prodi = await getProdiByPTN(ptnId);
-    prodi.sort((a, b) {
-      double rateA = calculatePassingRate(a['daya_tampung'], a['peminat']);
-      double rateB = calculatePassingRate(b['daya_tampung'], b['peminat']);
-      return rateA.compareTo(rateB);
-    });
-    return prodi;
-  }
-
-  Future<Map<String, dynamic>> getProdiExtremes(int ptnId) async {
-    final prodi = await getProdiByPTN(ptnId);
-    if (prodi.isEmpty) {
-      return {'easiest': null, 'hardest': null};
-    }
-
-    Map<String, dynamic> easiest = prodi[0];
-    Map<String, dynamic> hardest = prodi[0];
-    double easyRate = calculatePassingRate(
-      easiest['daya_tampung'],
-      easiest['peminat'],
-    );
-    double hardRate = calculatePassingRate(
-      hardest['daya_tampung'],
-      hardest['peminat'],
-    );
-
-    for (var p in prodi) {
-      double rate = calculatePassingRate(p['daya_tampung'], p['peminat']);
-      if (rate > easyRate) {
-        easiest = p;
-        easyRate = rate;
-      }
-      if (rate < hardRate) {
-        hardest = p;
-        hardRate = rate;
-      }
-    }
-
-    return {
-      'easiest': easiest,
-      'hardest': hardest,
-      'easyRate': easyRate,
-      'hardRate': hardRate,
-    };
-  }
-
-  String getProdiDifficultyRecommendation(double passingRate) {
-    if (passingRate > 10)
-      return 'Prodi ini relatif mudah dengan banyak kesempatan masuk';
-    if (passingRate > 5) return 'Prodi ini memiliki tingkat kesulitan menengah';
-    if (passingRate > 2) return 'Prodi ini cukup sulit, butuh persiapan matang';
-    return 'Prodi ini sangat kompetitif, butuh skor tertinggi';
-  }
-
-  Future<List<Map<String, dynamic>>> getPeluangLolosAllPilihan(
-    int userId,
-    int currentScore,
-  ) async {
-    try {
-      final pilihan = await getPilihanWithDetails(userId);
-      List<Map<String, dynamic>> result = [];
-
-      for (var p in pilihan) {
-        final targetScore = p['target_score'] as int;
-        final peluang = calculatePeluang(currentScore, targetScore);
-        final gap = calculateScoreGap(currentScore, targetScore);
-
-        result.add({
-          'urutan': p['urutan'],
-          'ptn_nama': p['ptn_nama'],
-          'prodi_nama': p['prodi_nama'],
-          'target_score': targetScore,
-          'score_gap': gap,
-          'peluang': peluang,
-          'color': getPeluangColor(peluang),
-        });
-      }
-      return result;
-    } catch (e) {
-      print('Error getting peluang lolos: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> rankingPeluang(
-    List<int> prodiIds,
-    int userId,
-  ) async {
-    List<Map<String, dynamic>> hasil = [];
-    final currentScore = await getUserCurrentScore(userId);
-
-    if (currentScore == null) return [];
-
-    for (var prodiId in prodiIds) {
-      final prodi = await getProdiById(prodiId);
-      if (prodi != null) {
-        final dayaTampung = prodi['daya_tampung'] as int;
-        final peminat = prodi['peminat'] as int;
-        final targetScore = prodi['target_score'] as int;
-
-        final statistik = await calculatePeluangStatistika(
-          currentScore: currentScore,
-          targetScore: targetScore,
-          userId: userId,
-          dayaTampung: dayaTampung,
-          peminat: peminat,
-        );
-
-        if (statistik != null) {
-          hasil.add({
-            'prodiId': prodiId,
-            'namaProdi': prodi['nama'],
-            'targetScore': targetScore,
-            'peluang': statistik['peluang'],
-            'persentase': statistik['persentase'],
-            'rekomendasi': statistik['rekomendasi'],
-          });
-        }
-      }
-    }
-
-    hasil.sort(
-      (a, b) => double.parse(
-        b['persentase'],
-      ).compareTo(double.parse(a['persentase'])),
-    );
-    return hasil;
-  }
+  
 }
