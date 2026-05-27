@@ -13,7 +13,6 @@ class _StatistikScreenState extends State<StatistikScreen> {
   Color _getColorFromHex(String hexColor) {
     try {
       String cleanedColor = hexColor.replaceAll('#', '');
-
       if (cleanedColor.length == 6) {
         return Color(int.parse('FF$cleanedColor', radix: 16));
       } else if (cleanedColor.length == 8) {
@@ -59,10 +58,9 @@ class _StatistikScreenState extends State<StatistikScreen> {
     setState(() => _isLoading = true);
 
     try {
+      
       await _loadCurrentScore();
-
       await _loadPTNData();
-
       await _loadExistingPilihan();
     } catch (e) {
       print('Error loading data: $e');
@@ -73,7 +71,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
 
   Future<void> _loadCurrentScore() async {
     try {
-      final score = await _statistikService.getUserCurrentScore(widget.userId);
+      final score = await _statistikService.loadCurrentScore(widget.userId);
       setState(() {
         currentScore = score;
       });
@@ -84,7 +82,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
   }
 
   Future<void> _loadPTNData() async {
-    final ptn = await _statistikService.getAllPTN();
+    final ptn = await _statistikService.loadPTNList();
     setState(() {
       ptnList = ptn;
     });
@@ -92,9 +90,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
 
   Future<void> _loadExistingPilihan() async {
     try {
-      final pilihan = await _statistikService.getPilihanWithDetails(
-        widget.userId,
-      );
+      final pilihan = await _statistikService.loadUserPilihan(widget.userId);
 
       for (var p in pilihan) {
         final urutan = p['urutan'] as int;
@@ -102,7 +98,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         final prodiId = p['prodi_id'] as int;
         final targetScore = p['target_score'] as int;
 
-        final prodi = await _statistikService.getProdiByPTN(ptnId);
+        final prodi = await _statistikService.loadProdiByPTN(ptnId);
 
         setState(() {
           if (urutan == 1) {
@@ -129,7 +125,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
   }
 
   Future<void> _loadProdiData(int ptnId, int pilihanIndex) async {
-    final prodi = await _statistikService.getProdiByPTN(ptnId);
+    final prodi = await _statistikService.loadProdiByPTN(ptnId);
     setState(() {
       if (pilihanIndex == 1) {
         prodiList1 = prodi;
@@ -145,10 +141,11 @@ class _StatistikScreenState extends State<StatistikScreen> {
   }
 
   Future<void> _updateTargetScore(int prodiId, int pilihanIndex) async {
-    final prodi = await _statistikService.getProdiById(prodiId);
-    if (prodi != null && prodi.containsKey('target_score')) {
+    final targetScore = await _statistikService.getTargetScoreByProdiId(
+      prodiId,
+    );
+    if (targetScore != null) {
       setState(() {
-        int targetScore = prodi['target_score'] as int;
         if (pilihanIndex == 1) {
           targetScore1 = targetScore;
         } else if (pilihanIndex == 2) {
@@ -270,6 +267,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -291,9 +289,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -303,21 +299,15 @@ class _StatistikScreenState extends State<StatistikScreen> {
                       color: const Color(0xFF2B4C7E).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(width: 4),
-                        Text(
-                          currentScore != null
-                              ? "Nilai UTBK: $currentScore"
-                              : "Nilai UTBK: Belum diisi",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2B4C7E),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      currentScore != null
+                          ? "Nilai UTBK: $currentScore"
+                          : "Nilai UTBK: Belum diisi",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B4C7E),
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
