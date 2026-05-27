@@ -75,6 +75,10 @@ class TryoutChart extends StatelessWidget {
       if (minScore < 0) minScore = 0;
     }
 
+    final double minXValue = 0;
+    final double maxXValue =
+        spots.length > 1 ? (spots.length - 1).toDouble() : 1.0;
+
     return LineChart(
       LineChartData(
         gridData: FlGridData(
@@ -94,6 +98,7 @@ class TryoutChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 30,
+              interval: 1,
               getTitlesWidget: (value, meta) {
                 int index = value.toInt();
 
@@ -116,10 +121,13 @@ class TryoutChart extends StatelessWidget {
               reservedSize: 40,
               interval: 100,
               getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toInt().toString(),
-                  style: const TextStyle(fontSize: 10),
-                );
+                if (value.toInt() % 100 == 0) {
+                  return Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(fontSize: 10),
+                  );
+                }
+                return const Text('');
               },
             ),
           ),
@@ -134,8 +142,8 @@ class TryoutChart extends StatelessWidget {
           show: true,
           border: Border.all(color: Colors.grey[300]!, width: 1),
         ),
-        minX: 0,
-        maxX: (spots.length - 1).toDouble(),
+        minX: minXValue,
+        maxX: maxXValue,
         minY: minScore,
         maxY: maxScore,
         lineBarsData: [

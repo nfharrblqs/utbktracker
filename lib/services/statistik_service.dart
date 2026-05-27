@@ -567,6 +567,101 @@ class StatistikService {
     }
   }
 
+  Future<Map<String, dynamic>> loadAllStatistikData(int userId) async {
+    try {
+      final currentScore = await getUserCurrentScore(userId);
+      final ptnList = await getAllPTN();
+      final existingPilihan = await getPilihanWithDetails(userId);
 
-  
+      Map<int, List<Map<String, dynamic>>> prodiMap = {};
+      for (var pilihan in existingPilihan) {
+        final ptnId = pilihan['ptn_id'] as int;
+        if (!prodiMap.containsKey(ptnId)) {
+          prodiMap[ptnId] = await getProdiByPTN(ptnId);
+        }
+      }
+
+      return {
+        'currentScore': currentScore,
+        'ptnList': ptnList,
+        'existingPilihan': existingPilihan,
+        'prodiMap': prodiMap,
+      };
+    } catch (e) {
+      print('Error loading all statistik data: $e');
+      return {};
+    }
+  }
+
+  Future<int?> loadCurrentScore(int userId) async {
+    return await getUserCurrentScore(userId);
+  }
+
+  Future<List<Map<String, dynamic>>> loadPTNList() async {
+    return await getAllPTN();
+  }
+
+  Future<List<Map<String, dynamic>>> loadUserPilihan(int userId) async {
+    return await getPilihanWithDetails(userId);
+  }
+
+  Future<List<Map<String, dynamic>>> loadProdiByPTN(int ptnId) async {
+    return await getProdiByPTN(ptnId);
+  }
+
+  Future<int?> getTargetScoreByProdiId(int prodiId) async {
+    final prodi = await getProdiById(prodiId);
+    if (prodi != null && prodi.containsKey('target_score')) {
+      return prodi['target_score'] as int;
+    }
+    return null;
+  }
+
+  Future<Map<int, Map<String, dynamic>>> processUserPilihan(int userId) async {
+    final pilihan = await loadUserPilihan(userId);
+    Map<int, Map<String, dynamic>> result = {};
+
+    for (var p in pilihan) {
+      final urutan = p['urutan'] as int;
+      final ptnId = p['ptn_id'] as int;
+      final prodiId = p['prodi_id'] as int;
+      final targetScore = p['target_score'] as int;
+      final prodiList = await loadProdiByPTN(ptnId);
+
+      result[urutan] = {
+        'ptnId': ptnId,
+        'prodiId': prodiId,
+        'targetScore': targetScore,
+        'prodiList': prodiList,
+        'ptnNama': p['ptn_nama'],
+        'prodiNama': p['prodi_nama'],
+      };
+    }
+
+    return result;
+  }
+
+  bool isPilihanValid(Map<int, Map<String, dynamic>> pilihanData) {
+    return pilihanData.isNotEmpty;
+  }
+
+  Future<bool> saveAllPilihan(
+    int userId,
+    Map<int, Map<String, dynamic>> pilihanData,
+  ) async {
+    try {
+      for (var entry in pilihanData.entries) {
+        final urutan = entry.key;
+        final data = entry.value;
+        final ptnId = data['ptnId'] as int;
+        final prodiId = data['prodiId'] as int;
+
+        await savePilihan(userId, urutan, ptnId, prodiId);
+      }
+      return true;
+    } catch (e) {
+      print('Error saving all pilihan: $e');
+      return false;
+    }
+  }
 }
