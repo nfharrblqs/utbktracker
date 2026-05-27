@@ -281,9 +281,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
+                    
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.all(16),
@@ -372,6 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(width: 12),
 
+                        
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.all(16),
@@ -406,49 +409,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    const Expanded(
-                                      child: Text(
-                                        'Pilihan Kampus',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                          color: Color(0xFF2B4C7E),
-                                        ),
+                                    const Text(
+                                      'Pilihan Kampus',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                        color: Color(0xFF2B4C7E),
                                       ),
                                     ),
-                                    if (_userPilihan.isNotEmpty)
-                                      TextButton.icon(
-                                        onPressed: () async {
-                                          final result = await Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder:
-                                                  (context) => StatistikScreen(
-                                                    userId: currentUserId,
-                                                  ),
-                                            ),
-                                          );
-                                          if (result == true)
-                                            _loadUserPilihan();
-                                        },
-                                        icon: const Icon(Icons.edit, size: 12),
-                                        label: const Text(
-                                          'Edit',
-                                          style: TextStyle(fontSize: 10),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 2,
-                                          ),
-                                          minimumSize: Size.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                      ),
                                   ],
                                 ),
                                 const SizedBox(height: 10),
+
                                 if (_isLoading)
                                   const Center(
                                     child: Padding(
@@ -507,6 +479,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                     );
                                   }),
+
+                                const SizedBox(height: 12),
+
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: TextButton(
+                                    onPressed: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) => StatistikScreen(
+                                                userId: currentUserId,
+                                              ),
+                                        ),
+                                      );
+                                      if (result == true) _loadUserPilihan();
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      backgroundColor: const Color(
+                                        0xFF2B4C7E,
+                                      ).withOpacity(0.05),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.edit,
+                                          size: 14,
+                                          color: Color(0xFF2B4C7E),
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Edit Pilihan',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF2B4C7E),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -654,7 +677,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                     width: 36,
                                                     height: 36,
                                                     decoration: BoxDecoration(
-                                                      color: Colors.blue.withOpacity(0.1),
+                                                      color: Colors.blue
+                                                          .withOpacity(0.1),
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                             10,
@@ -667,7 +691,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                           fontWeight:
                                                               FontWeight.bold,
                                                           fontSize: 14,
-                                                          color: Colors.black
+                                                          color: Colors.black,
                                                         ),
                                                       ),
                                                     ),
@@ -725,7 +749,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                         fontWeight:
                                                             FontWeight.bold,
                                                         fontSize: 14,
-                                                        color: Colors.black
+                                                        color: Colors.black,
                                                       ),
                                                     ),
                                                   ),
